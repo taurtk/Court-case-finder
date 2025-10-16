@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Court Cause List Fetcher</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container mt-5">
+        <h2 class="mb-4">Fetch Court Cause List</h2>
+
+        <div class="row statedistdiv p-3">
+            <div class="col-md-3" id="langState">
+                <label for="sess_state_code" class="form-label">Select State</label>
+                <select name="sess_state_code" id="sess_state_code" class="form-select form-select-sm"
+                    onchange="fillDistrict(this.value);" aria-describedby="Select_alert">
+                    <option value="0">Select state</option>
+                    <option value="28">Andaman and Nicobar</option>
+                    <option value="2">Andhra Pradesh</option>
+                    <option value="36">Arunachal Pradesh</option>
+                    <option value="6">Assam</option>
+                    <option value="8">Bihar</option>
+                    <option value="27">Chandigarh</option>
+                    <option value="18">Chhattisgarh</option>
+                    <option value="26">Delhi</option>
+                    <option value="30">Goa</option>
+                    <option value="17">Gujarat</option>
+                    <option value="14">Haryana</option>
+                    <option value="5">Himachal Pradesh</option>
+                    <option value="12">Jammu and Kashmir</option>
+                    <option value="7">Jharkhand</option>
+                    <option value="3">Karnataka</option>
+                    <option value="4">Kerala</option>
+                    <option value="33">Ladakh</option>
+                    <option value="37">Lakshadweep</option>
+                    <option value="23">Madhya Pradesh</option>
+                    <option value="1">Maharashtra</option>
+                    <option value="25">Manipur</option>
+                    <option value="21">Meghalaya</option>
+                    <option value="19">Mizoram</option>
+                    <option value="34">Nagaland</option>
+                    <option value="11">Odisha</option>
+                    <option value="35">Puducherry</option>
+                    <option value="22">Punjab</option>
+                    <option value="9">Rajasthan</option>
+                    <option value="24">Sikkim</option>
+                    <option value="10">Tamil Nadu</option>
+                    <option value="29">Telangana</option>
+                    <option value="38">The Dadra And Nagar Haveli And Daman And Diu</option>
+                    <option value="20">Tripura</option>
+                    <option value="15">Uttarakhand</option>
+                    <option value="13">Uttar Pradesh</option>
+                    <option value="16">West Bengal</option>
+                </select>
+                <input id="hdn_lang" name="hdn_lang" type="hidden" value="">
+            </div>
+
+            <div class="col-md-3">
+                <label for="sess_dist_code" class="form-label">Select District</label>
+                <select class="form-select form-select-sm" name="sees_dist_code" id="sess_dist_code"
+                    onchange="fillCourtComplex(this.value);" aria-describedby="Select_alert">
+                    <option value="">Select district</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label for="court_complex_code" class="form-label">Select Court Complex</label>
+                <select class="SDC_Select form-select form-select-sm col" id="court_complex_code"
+                    onchange="fillCourtName(this.value);" aria-describedby="Select_alert">
+                    <option value="">Select court complex</option>
+                </select>
+            </div>
+
+            <div class="col-md-3" id="court_name_div" style="display:none;">
+                <label for="court_name" class="form-label">Select Court Name</label>
+                <select class="form-select form-select-sm" id="court_name" aria-describedby="Select_alert">
+                    <option value="">Select court name</option>
+                </select>
+            </div>
+
+            <div class="col-md-3" id="submit_div" style="display:none;">
+                <button type="button" class="btn btn-primary mt-4" onclick="submitCauseList()">Submit and Download PDF</button>
+            </div>
+
+
+            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+            <script>
+                // Sample functions to handle the form interactions
+                function fillDistrict(stateValue) {
+                    console.log("Selected state:", stateValue);
+
+                    // Clear existing districts
+                    const districtSelect = document.getElementById('sess_dist_code');
+                    districtSelect.innerHTML = '<option value="">Select district</option>';
+
+                    // If a state is selected, fetch districts
+                    if (stateValue && stateValue !== "0") {
+                        // Show loading indicator
+                        const loadingOption = document.createElement('option');
+                        loadingOption.value = "";
+                        loadingOption.text = "Loading districts...";
+                        districtSelect.appendChild(loadingOption);
+
+                        // Prepare form data
+                        const formData = new FormData();
+                        formData.append('state_code', stateValue);
+                        formData.append('ajax_req', 'true');
+                       
+
+                        // Send request to fetch districts
+                        fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus%2FfillDistrict', {
+                            method: 'POST',
+                            headers: {
+                                'Cookie': 'JSESSION=83597073; SERVICES_SESSID=d3rmfdkbultoc51mhuumm25uf6'
+                            },
+                            body: formData
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log("Districts response:", data);
+                                // Parse and populate districts
+                                districtSelect.innerHTML = '<option value="">Select district</option>';
+
+                                // Check if the response has the expected structure
+                                if (data && data.dist_list) {
+                                    // Parse the HTML options from the dist_list property
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(data.dist_list, 'text/html');
+
+                                    // Extract options from the parsed HTML
+                                    const options = doc.querySelectorAll('option');
+
+                                    // Add each option to the district select
+                                    options.forEach(option => {
+                                        // Skip the first option if it's just a placeholder
+                                        if (option.value !== '' || option.textContent.trim() !== 'Select district') {
+                                            const newOption = document.createElement('option');
+                                            newOption.value = option.value;
+                                            newOption.text = option.textContent;
+                                            districtSelect.appendChild(newOption);
+                                        }
+                                    });
+
+                                    // If no options were added, show a message
+                                    if (districtSelect.options.length <= 1) {
+                                        const option = document.createElement('option');
+                                        option.value = "";
+                                        option.text = "No districts found";
+                                        districtSelect.appendChild(option);
+                                    }
+                                } else {
+                                    // If the response structure is not as expected
+                                    const option = document.createElement('option');
+                                    option.value = "";
+                                    option.text = "No districts found";
+                                    districtSelect.appendChild(option);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error fetching districts:', error);
+                                districtSelect.innerHTML = '<option value="">Select district</option>';
+                                const option = document.createElement('option');
+                                option.value = "";
+                                option.text = "Error loading districts";
+                                districtSelect.appendChild(option);
+                            });
+                    }
+                }
+
+                function fillCourtComplex(districtValue) {
+                    console.log("Selected district:", districtValue);
+
+                    // Clear existing court complexes
+                    const courtComplexSelect = document.getElementById('court_complex_code');
+                    courtComplexSelect.innerHTML = '<option value="">Select court complex</option>';
+
+                    // Get the selected state value
+                    const stateValue = document.getElementById('sess_state_code').value;
+
+                    // If a district is selected, fetch court complexes
+                    if (districtValue && districtValue !== "" && stateValue && stateValue !== "0") {
+                        // Show loading indicator
+                        const loadingOption = document.createElement('option');
+                        loadingOption.value = "";
+                        loadingOption.text = "Loading court complexes...";
+                        courtComplexSelect.appendChild(loadingOption);
+
+                        // Prepare form data
+                        const formData = new FormData();
+                        formData.append('state_code', stateValue);
+                        formData.append('dist_code', districtValue);
+                        formData.append('ajax_req', 'true');
+                        
+                        // Send request to fetch court complexes
+                        fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=casestatus%2Ffillcomplex', {
+                            method: 'POST',
+                            headers: {
+                                'Cookie': 'JSESSION=83597073; SERVICES_SESSID=d3rmfdkbultoc51mhuumm25uf6'
+                            },
+                            body: formData
+                        })
+                            .then(response => response.json())
+                            .then(data => {
+                                console.log("Court complexes response:", data);
+                                // Parse and populate court complexes
+                                courtComplexSelect.innerHTML = '<option value="">Select court complex</option>';
+
+                                // Check if the response has the expected structure
+                                if (data && data.complex_list) {
+                                    // Parse the HTML options from the complex_list property
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(data.complex_list, 'text/html');
+
+                                    // Extract options from the parsed HTML
+                                    const options = doc.querySelectorAll('option');
+
+                                    // Add each option to the court complex select
+                                    options.forEach(option => {
+                                        // Skip the first option if it's just a placeholder
+                                        if (option.value !== '' || option.textContent.trim() !== 'Select court complex') {
+                                            const newOption = document.createElement('option');
+                                            newOption.value = option.value;
+                                            newOption.text = option.textContent;
+                                            courtComplexSelect.appendChild(newOption);
+                                        }
+                                    });
+
+                                    // If no options were added, show a message
+                                    if (courtComplexSelect.options.length <= 1) {
+                                        const option = document.createElement('option');
+                                        option.value = "";
+                                        option.text = "No court complexes found";
+                                        courtComplexSelect.appendChild(option);
+                                    }
+                                } else {
+                                    // If the response structure is not as expected
+                                    const option = document.createElement('option');
+                                    option.value = "";
+                                    option.text = "No court complexes found";
+                                    courtComplexSelect.appendChild(option);
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error fetching court complexes:', error);
+                                courtComplexSelect.innerHTML = '<option value="">Select court complex</option>';
+                                const option = document.createElement('option');
+                                option.value = "";
+                                option.text = "Error loading court complexes";
+                                courtComplexSelect.appendChild(option);
+                            });
+                    }
+                }
+
+                async function fillCourtName(courtComplexValue) {
+                    console.log("Selected court complex:", courtComplexValue);
+
+                    const courtNameSelect = document.getElementById('court_name');
+                    const courtNameDiv = document.getElementById('court_name_div');
+                    if (!courtNameSelect || !courtNameDiv) {
+                        console.error("DOM elements missing", { courtNameSelect, courtNameDiv });
+                        return;
+                    }
+
+                    courtNameSelect.innerHTML = '<option value="">Select court name</option>';
+
+                    const stateValue = document.getElementById('sess_state_code')?.value?.trim();
+                    const districtValue = document.getElementById('sess_dist_code')?.value?.trim();
+                    const courtComplexValueTrimmed = courtComplexValue?.split('@')[0]?.trim();
+
+                    console.log("Input values:", { stateValue, districtValue, courtComplexValueTrimmed });
+
+                    if (!stateValue || stateValue === "0" || !districtValue || !courtComplexValueTrimmed) {
+                        console.warn("Invalid input values", { stateValue, districtValue, courtComplexValue });
+                        courtNameDiv.style.display = 'none';
+                        courtNameSelect.innerHTML = '<option value="">Select court name</option>';
+                        const option = document.createElement('option');
+                        option.value = "";
+                        option.text = "Invalid input values";
+                        courtNameSelect.appendChild(option);
+                        return;
+                    }
+
+                    courtNameDiv.style.display = 'block';
+                    const loadingOption = document.createElement('option');
+                    loadingOption.value = "";
+                    loadingOption.text = "Loading court names...";
+                    courtNameSelect.appendChild(loadingOption);
+
+                    const formData = new FormData();
+                    formData.append('state_code', stateValue);
+                    formData.append('dist_code', districtValue);
+                    formData.append('court_complex_code', courtComplexValueTrimmed);
+                    formData.append('est_code', '1,2,3');
+                    formData.append('search_act', 'undefined');
+                    formData.append('ajax_req', 'true');
+                    
+
+                    // Properly log FormData contents
+                    console.log('FormData contents:');
+                    for (let [key, value] of formData.entries()) {
+                        console.log(`  ${key}: ${value}`);
+                    }
+
+                    // Convert FormData to URLSearchParams for proper encoding
+                    const urlEncodedData = new URLSearchParams();
+                    for (let [key, value] of formData.entries()) {
+                        urlEncodedData.append(key, value);
+                    }
+                    console.log('URLSearchParams contents:', urlEncodedData.toString());
+                    var res = await fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=cause_list%2FfillCauseList', {
+                        method: 'POST',
+                        headers: {
+                            'Cookie': 'JSESSION=84019595; SERVICES_SESSID=bdol4p47dmopoat7jemu8mnauf',
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: urlEncodedData.toString()
+                    })
+                    const data = await res.json();
+                    console.log("Parsed JSON:", data);
+                    courtNameSelect.innerHTML = '<option value="">Select court name</option>';
+
+                    if (data && data.cause_list) {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(data.cause_list, 'text/html');
+                        const options = doc.querySelectorAll('option');
+
+                        options.forEach(option => {
+                            if (option.value && !option.disabled && option.value !== '' && option.textContent.trim() !== 'Select Court Name') {
+                                const newOption = document.createElement('option');
+                                newOption.value = option.value;
+                                newOption.text = option.textContent.trim();
+                                courtNameSelect.appendChild(newOption);
+                            }
+                        });
+
+                        if (courtNameSelect.options.length > 1) {
+                            // Show submit button when court names are available
+                            document.getElementById('submit_div').style.display = 'block';
+                        } else {
+                            const option = document.createElement('option');
+                            option.value = "";
+                            option.text = "No court names found";
+                            courtNameSelect.appendChild(option);
+                        }
+                    } else {
+                        const option = document.createElement('option');
+                        option.value = "";
+                        option.text = "Invalid response format";
+                        courtNameSelect.appendChild(option);
+                    }
+                }
+
+                function submitCauseList() {
+                    const courtNameSelect = document.getElementById('court_name');
+                    const selectedCourt = courtNameSelect.value;
+
+                    if (!selectedCourt) {
+                        alert('Please select a court name');
+                        return;
+                    }
+
+                    const stateValue = document.getElementById('sess_state_code').value;
+                    const districtValue = document.getElementById('sess_dist_code').value;
+                    const courtComplexValue = document.getElementById('court_complex_code').value.split('@')[0];
+
+                    // Get today's date in DD-MM-YYYY format
+                    const today = new Date();
+                    const dateStr = today.getDate().toString().padStart(2, '0') + '-' +
+                                   (today.getMonth() + 1).toString().padStart(2, '0') + '-' +
+                                   today.getFullYear();
+
+                    const formData = new URLSearchParams();
+                    formData.append('CL_court_no', selectedCourt);
+                    formData.append('causelist_date', dateStr);
+                    formData.append('court_name_txt', courtNameSelect.options[courtNameSelect.selectedIndex].text);
+                    formData.append('state_code', stateValue);
+                    formData.append('dist_code', districtValue);
+                    formData.append('court_complex_code', courtComplexValue);
+                    formData.append('est_code', 'null');
+                    formData.append('cicri', 'cri');
+                    formData.append('selprevdays', '0');
+                    formData.append('ajax_req', 'true');
+                    formData.append('app_token', 'f66ec8948401accb2557614442917e712d0a3022e15de0409a01f919dd47177d');
+
+                    console.log('Submitting cause list with data:', formData.toString());
+
+                    fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=cause_list%2FsubmitCauseList', {
+                        method: 'POST',
+                        headers: {
+                            'Cookie': 'JSESSION=57900748; SERVICES_SESSID=bbo685ioupbk28ute9fmcihn3l',
+                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                        },
+                        body: formData.toString()
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Submit response:', data);
+                        if (data && data.case_data) {
+                            // Create a new window with the case data
+                            const printWindow = window.open('', '_blank');
+                            const htmlContent = '<html><head><title>Court Cause List</title><style>body { font-family: Arial, sans-serif; margin: 20px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; } .header { text-align: center; margin-bottom: 20px; } .search-container { position: absolute; right: 20px; top: 20px; }</style></head><body>' + data.case_data + '<script>window.onload = function() { window.print(); }<\/script></body></html>';
+                            printWindow.document.write(htmlContent);
+                            printWindow.document.close();
+                        } else {
+                            alert('No case data received');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error submitting cause list:', error);
+                        alert('Error submitting cause list: ' + error.message);
+                    });
+                }
+
+            </script>
+</body>
+
+</html>
