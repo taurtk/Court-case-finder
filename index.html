@@ -74,15 +74,13 @@
                 </select>
             </div>
 
-            <div class="col-md-3" id="court_name_div" style="display:none;">
-                <label for="court_name" class="form-label">Select Court Name</label>
-                <select class="form-select form-select-sm" id="court_name" aria-describedby="Select_alert">
-                    <option value="">Select court name</option>
-                </select>
-            </div>
-
-            <div class="col-md-3" id="submit_div" style="display:none;">
-                <button type="button" class="btn btn-primary mt-4" onclick="submitCauseList()">Submit and Download PDF</button>
+            <div class="col-md-3" id="loading_div" style="display:none;">
+                <div class="d-flex align-items-center mt-4">
+                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <span>Fetching all cause lists...</span>
+                </div>
             </div>
         </div>
 
@@ -267,15 +265,6 @@
                 async function fillCourtName(courtComplexValue) {
                     console.log("Selected court complex:", courtComplexValue);
 
-                    const courtNameSelect = document.getElementById('court_name');
-                    const courtNameDiv = document.getElementById('court_name_div');
-                    if (!courtNameSelect || !courtNameDiv) {
-                        console.error("DOM elements missing", { courtNameSelect, courtNameDiv });
-                        return;
-                    }
-
-                    courtNameSelect.innerHTML = '<option value="">Select court name</option>';
-
                     const stateValue = document.getElementById('sess_state_code')?.value?.trim();
                     const districtValue = document.getElementById('sess_dist_code')?.value?.trim();
                     const courtComplexValueTrimmed = courtComplexValue?.split('@')[0]?.trim();
@@ -284,20 +273,11 @@
 
                     if (!stateValue || stateValue === "0" || !districtValue || !courtComplexValueTrimmed) {
                         console.warn("Invalid input values", { stateValue, districtValue, courtComplexValue });
-                        courtNameDiv.style.display = 'none';
-                        courtNameSelect.innerHTML = '<option value="">Select court name</option>';
-                        const option = document.createElement('option');
-                        option.value = "";
-                        option.text = "Invalid input values";
-                        courtNameSelect.appendChild(option);
                         return;
                     }
 
-                    courtNameDiv.style.display = 'block';
-                    const loadingOption = document.createElement('option');
-                    loadingOption.value = "";
-                    loadingOption.text = "Loading court names...";
-                    courtNameSelect.appendChild(loadingOption);
+                    // Show loading indicator
+                    document.getElementById('loading_div').style.display = 'block';
 
                     const formData = new FormData();
                     formData.append('state_code', stateValue);
@@ -306,7 +286,6 @@
                     formData.append('est_code', '1,2,3');
                     formData.append('search_act', 'undefined');
                     formData.append('ajax_req', 'true');
-                    
 
                     // Properly log FormData contents
                     console.log('FormData contents:');
@@ -320,62 +299,52 @@
                         urlEncodedData.append(key, value);
                     }
                     console.log('URLSearchParams contents:', urlEncodedData.toString());
-                    var res = await fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=cause_list%2FfillCauseList', {
-                        method: 'POST',
-                        headers: {
-                            'Cookie': 'JSESSION=84019595; SERVICES_SESSID=bdol4p47dmopoat7jemu8mnauf',
-                            'Content-Type': 'application/x-www-form-urlencoded'
-                        },
-                        body: urlEncodedData.toString()
-                    })
-                    const data = await res.json();
-                    console.log("Parsed JSON:", data);
-                    courtNameSelect.innerHTML = '<option value="">Select court name</option>';
 
-                    if (data && data.cause_list) {
-                        const parser = new DOMParser();
-                        const doc = parser.parseFromString(data.cause_list, 'text/html');
-                        const options = doc.querySelectorAll('option');
-
-                        options.forEach(option => {
-                            if (option.value && !option.disabled && option.value !== '' && option.textContent.trim() !== 'Select Court Name') {
-                                const newOption = document.createElement('option');
-                                newOption.value = option.value;
-                                newOption.text = option.textContent.trim();
-                                courtNameSelect.appendChild(newOption);
-                            }
+                    try {
+                        var res = await fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=cause_list%2FfillCauseList', {
+                            method: 'POST',
+                            headers: {
+                                'Cookie': 'JSESSION=84019595; SERVICES_SESSID=bdol4p47dmopoat7jemu8mnauf',
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: urlEncodedData.toString()
                         });
+                        const data = await res.json();
+                        console.log("Parsed JSON:", data);
 
-                        if (courtNameSelect.options.length > 1) {
-                            // Show submit button when court names are available
-                            document.getElementById('submit_div').style.display = 'block';
+                        if (data && data.cause_list) {
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(data.cause_list, 'text/html');
+                            const options = doc.querySelectorAll('option');
+
+                            const courtNames = [];
+                            options.forEach(option => {
+                                if (option.value && !option.disabled && option.value !== '' && option.textContent.trim() !== 'Select Court Name') {
+                                    courtNames.push({
+                                        value: option.value,
+                                        text: option.textContent.trim()
+                                    });
+                                }
+                            });
+
+                            if (courtNames.length > 0) {
+                                // Automatically fetch all cause lists
+                                await fetchAllCauseLists(courtNames, stateValue, districtValue, courtComplexValueTrimmed);
+                            } else {
+                                console.warn("No court names found");
+                                document.getElementById('loading_div').style.display = 'none';
+                            }
                         } else {
-                            const option = document.createElement('option');
-                            option.value = "";
-                            option.text = "No court names found";
-                            courtNameSelect.appendChild(option);
+                            console.error("Invalid response format");
+                            document.getElementById('loading_div').style.display = 'none';
                         }
-                    } else {
-                        const option = document.createElement('option');
-                        option.value = "";
-                        option.text = "Invalid response format";
-                        courtNameSelect.appendChild(option);
+                    } catch (error) {
+                        console.error('Error fetching court names:', error);
+                        document.getElementById('loading_div').style.display = 'none';
                     }
                 }
 
-                function submitCauseList() {
-                    const courtNameSelect = document.getElementById('court_name');
-                    const selectedCourt = courtNameSelect.value;
-
-                    if (!selectedCourt) {
-                        alert('Please select a court name');
-                        return;
-                    }
-
-                    const stateValue = document.getElementById('sess_state_code').value;
-                    const districtValue = document.getElementById('sess_dist_code').value;
-                    const courtComplexValue = document.getElementById('court_complex_code').value.split('@')[0];
-
+                async function fetchSingleCauseList(court, stateValue, districtValue, courtComplexValue) {
                     // Get today's date in DD-MM-YYYY format
                     const today = new Date();
                     const dateStr = today.getDate().toString().padStart(2, '0') + '-' +
@@ -383,9 +352,9 @@
                                    today.getFullYear();
 
                     const formData = new URLSearchParams();
-                    formData.append('CL_court_no', selectedCourt);
+                    formData.append('CL_court_no', court.value);
                     formData.append('causelist_date', dateStr);
-                    formData.append('court_name_txt', courtNameSelect.options[courtNameSelect.selectedIndex].text);
+                    formData.append('court_name_txt', court.text);
                     formData.append('state_code', stateValue);
                     formData.append('dist_code', districtValue);
                     formData.append('court_complex_code', courtComplexValue);
@@ -395,44 +364,93 @@
                     formData.append('ajax_req', 'true');
                     formData.append('app_token', 'f66ec8948401accb2557614442917e712d0a3022e15de0409a01f919dd47177d');
 
-                    console.log('Submitting cause list with data:', formData.toString());
+                    console.log('Fetching cause list for court:', court.text, formData.toString());
 
-                    fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=cause_list%2FsubmitCauseList', {
-                        method: 'POST',
-                        headers: {
-                            'Cookie': 'JSESSION=57900748; SERVICES_SESSID=bbo685ioupbk28ute9fmcihn3l',
-                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-                        },
-                        body: formData.toString()
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Submit response:', data);
+                    try {
+                        const response = await fetch('https://services.ecourts.gov.in/ecourtindia_v6/?p=cause_list%2FsubmitCauseList', {
+                            method: 'POST',
+                            headers: {
+                                'Cookie': 'JSESSION=57900748; SERVICES_SESSID=bbo685ioupbk28ute9fmcihn3l',
+                                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                            },
+                            body: formData.toString()
+                        });
+
+                        const data = await response.json();
+                        console.log('Cause list response for', court.text, ':', data);
+
                         if (data && data.case_data) {
-                            // Check if mobile device
-                            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-                            if (isMobile) {
-                                // Display in the same page for mobile
-                                displayCauseList(data.case_data);
-                            } else {
-                                // Create a new window with the case data for desktop
-                                const printWindow = window.open('', '_blank');
-                                if (!printWindow) {
-                                    alert('Popup blocked. Please allow popups for this site and try again.');
-                                    return;
-                                }
-                                const htmlContent = '<html><head><title>Court Cause List</title><style>body { font-family: Arial, sans-serif; margin: 20px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; } .header { text-align: center; margin-bottom: 20px; } .search-container { position: absolute; right: 20px; top: 20px; }</style></head><body>' + data.case_data + '<script>window.onload = function() { window.print(); }<\/script></body></html>';
-                                printWindow.document.write(htmlContent);
-                                printWindow.document.close();
-                            }
+                            return {
+                                courtName: court.text,
+                                htmlContent: data.case_data
+                            };
                         } else {
-                            alert('No case data received');
+                            console.warn('No case data for court:', court.text);
+                            return null;
                         }
-                    })
-                    .catch(error => {
-                        console.error('Error submitting cause list:', error);
-                        alert('Error submitting cause list: ' + error.message);
+                    } catch (error) {
+                        console.error('Error fetching cause list for court:', court.text, error);
+                        return null;
+                    }
+                }
+
+                async function fetchAllCauseLists(courtNames, stateValue, districtValue, courtComplexValue) {
+                    console.log('Fetching cause lists for all courts:', courtNames.length);
+
+                    const allCauseLists = [];
+                    const batchSize = 3; // Process 3 courts at a time to avoid overwhelming the server
+
+                    for (let i = 0; i < courtNames.length; i += batchSize) {
+                        const batch = courtNames.slice(i, i + batchSize);
+                        const promises = batch.map(court => fetchSingleCauseList(court, stateValue, districtValue, courtComplexValue));
+                        const results = await Promise.all(promises);
+                        allCauseLists.push(...results.filter(result => result !== null));
+                    }
+
+                    console.log('All cause lists fetched:', allCauseLists.length);
+
+                    // Hide loading indicator
+                    document.getElementById('loading_div').style.display = 'none';
+
+                    // Generate combined PDF
+                    generateCombinedPDF(allCauseLists);
+                }
+
+                function generateCombinedPDF(causeLists) {
+                    if (causeLists.length === 0) {
+                        alert('No cause lists found');
+                        return;
+                    }
+
+                    // Combine all HTML content
+                    let combinedHTML = '<html><head><title>All Court Cause Lists</title><style>@media print { .court-section { page-break-before: always; } } body { font-family: Arial, sans-serif; margin: 20px; } .court-section { margin-top: 40px; } .court-header { background-color: #f0f0f0; padding: 10px; margin-bottom: 20px; border-radius: 5px; } table { width: 100%; border-collapse: collapse; margin-top: 20px; } th, td { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #f2f2f2; } .header { text-align: center; margin-bottom: 20px; }</style></head><body>';
+
+                    causeLists.forEach((causeList, index) => {
+                        combinedHTML += `<div class="court-section">
+                            <div class="court-header">
+                                <h2>Court: ${causeList.courtName}</h2>
+                            </div>
+                            ${causeList.htmlContent}
+                        </div>`;
                     });
+
+                    combinedHTML += '<script>setTimeout(function() { window.print(); }, 1000);<\/script></body></html>';
+
+                    // Check if mobile device
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    if (isMobile) {
+                        // Display in the same page for mobile
+                        displayCauseList(combinedHTML);
+                    } else {
+                        // Create a new window with the combined data for desktop
+                        const printWindow = window.open('', '_blank');
+                        if (!printWindow) {
+                            alert('Popup blocked. Please allow popups for this site and try again.');
+                            return;
+                        }
+                        printWindow.document.write(combinedHTML);
+                        printWindow.document.close();
+                    }
                 }
 
                 function displayCauseList(caseData) {
